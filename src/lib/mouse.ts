@@ -1,4 +1,4 @@
-export const useMouse = (element: HTMLElement) => {
+export const useMouse = (element: HTMLCanvasElement) => {
   let isPointerDown = false;
   let position = new Float32Array([0, 0]);
 
@@ -11,8 +11,8 @@ export const useMouse = (element: HTMLElement) => {
   });
 
   element.addEventListener("pointermove", (event) => {
-    position[0] = event.clientX / element.clientWidth;
-    position[1] = event.clientY / element.clientHeight;
+    position[0] = event.clientX / element.width;
+    position[1] = event.clientY / element.height;
   });
 
   element.addEventListener("pointerleave", () => {
@@ -28,8 +28,5 @@ export const useMouse = (element: HTMLElement) => {
       return position;
     },
   }
-
-
-
 }
 

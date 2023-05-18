@@ -1,11 +1,12 @@
-import { VERTICES } from "./lib/data";
+import { RADIUS, VERTICES } from "./lib/data";
 import { initalizeWebGPU } from "./lib/initialize";
-import screenShader from "./shaders/screen.wgsl?raw";
-import colorShader from "./shaders/color.wgsl?raw";
 import { useMouse } from "./lib/mouse";
+import colorShader from "./shaders/color.wgsl?raw";
+import screenShader from "./shaders/screen.wgsl?raw";
 
 const app = document.querySelector<HTMLCanvasElement>('#app')!;
-const { device, context, canvasFormat } = await initalizeWebGPU(app);
+const { device, register } = await initalizeWebGPU();
+const { context, canvasFormat } = register(app);
 const mouse = useMouse(app);
 const getAspectRatio = () => app.clientWidth / app.clientHeight;
 
@@ -37,10 +38,61 @@ const colorShaderModule = device.createShaderModule({
   code: colorShader
 });
 
+// Bind group layout
+const bindGroupLayout = device.createBindGroupLayout({
+  label: "Bind group layout",
+  entries: [{
+    binding: 0,
+    visibility: GPUShaderStage.FRAGMENT,
+    buffer: {},
+  },
+  {
+    binding: 1,
+    visibility: GPUShaderStage.FRAGMENT,
+    buffer: {},
+  }]
+});
+
+// Pipeline layout
+const pipelineLayout = device.createPipelineLayout({
+  label: "Pipeline layout",
+  bindGroupLayouts: [bindGroupLayout],
+});
+
+// Uniform buffer
+const mousePositionBuffer = device.createBuffer({
+  label: "Mouse position buffer",
+  size: mouse.position.byteLength,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(mousePositionBuffer, 0, mouse.position);
+
+const data = new Float32Array([getAspectRatio(), RADIUS]);
+const dataBuffer = device.createBuffer({
+  label: "Data buffer",
+  size: data.byteLength,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(dataBuffer, 0, data);
+
+// Bind group
+const bindGroup = device.createBindGroup({
+  label: "Bind group",
+  layout: bindGroupLayout,
+  entries: [{
+    binding: 0,
+    resource: { buffer: mousePositionBuffer },
+  },
+  {
+    binding: 1,
+    resource: { buffer: dataBuffer },
+  }]
+});
+
 // Create the pipeline
 const screenPipeline = device.createRenderPipeline({
   label: "Screen pipeline",
-  layout: "auto",
+  layout: pipelineLayout,
   vertex: {
     module: shaderModule,
     entryPoint: "main",
@@ -67,11 +119,13 @@ const render = () => {
 
   pass.setPipeline(screenPipeline);
   pass.setVertexBuffer(0, vertexBuffer);
-  // pass.setBindGroup(0, bindGroup);
+  device.queue.writeBuffer(mousePositionBuffer, 0, mouse.position);
+  pass.setBindGroup(0, bindGroup);
   pass.draw(VERTICES.length / 2);
 
   pass.end();
   device.queue.submit([encoder.finish()]);
+  requestAnimationFrame(render);
 }
 
 render();

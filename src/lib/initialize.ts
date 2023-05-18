@@ -1,4 +1,4 @@
-export const initalizeWebGPU = async (canvas: HTMLCanvasElement) => {
+export const initalizeWebGPU = async () => {
   // Request an adapter
   if (!navigator.gpu) {
     throw new Error("WebGPU not supported on this browser.");
@@ -10,16 +10,21 @@ export const initalizeWebGPU = async (canvas: HTMLCanvasElement) => {
 
   const device = await adapter.requestDevice();
 
-  const context = canvas.getContext("webgpu")!;
-  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({
-    device: device,
-    format: canvasFormat,
-  });
+  const register = (canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext("webgpu")!;
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({
+      device: device,
+      format: canvasFormat,
+    });
+    return {
+      context,
+      canvasFormat,
+    }
+  }
 
   return {
     device,
-    context,
-    canvasFormat,
+    register,
   }
 }

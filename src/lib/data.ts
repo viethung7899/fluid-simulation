@@ -1,12 +1,12 @@
-const VALUE = 1;
+export const RADIUS = 0.0025;
 
 // Data for the square
 export const VERTICES = new Float32Array([
-  -VALUE, -VALUE, // Triangle 1 (Blue)
-  VALUE, -VALUE,
-  VALUE, VALUE,
+  -1, -1, // Triangle 1 (Blue)
+  1, -1,
+  1, 1,
 
-  -VALUE, -VALUE, // Triangle 2 (Red)
-  VALUE, VALUE,
-  -VALUE, VALUE,
+  -1, -1, // Triangle 2 (Red)
+  1, 1,
+  -1, 1,
 ])
