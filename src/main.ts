@@ -1,105 +1,95 @@
-import { RADIUS, VERTICES } from "./lib/data";
 import { initalizeWebGPU } from "./lib/initialize";
+import { makeLayouts } from "./lib/layout";
 import { useMouse } from "./lib/mouse";
-import colorShader from "./shaders/color.wgsl?raw";
-import screenShader from "./shaders/screen.wgsl?raw";
+import { FORCE_FACTOR, RADIUS } from "./lib/parameter";
+import { makeShaderModules } from "./lib/shader";
+import { createVertexBuffer } from "./lib/vertices";
 
 const app = document.querySelector<HTMLCanvasElement>('#app')!;
 const { device, register } = await initalizeWebGPU();
 const { context, canvasFormat } = register(app);
 const mouse = useMouse(app);
-const getAspectRatio = () => app.clientWidth / app.clientHeight;
+const getDimension = () => new Float32Array([app.width, app.height]);
+const getAspectRatio = () => app.width / app.height;
+const shaders = makeShaderModules(device);
+const layouts = makeLayouts(device);
 
 // Create vertex buffer
-const vertexBuffer = device.createBuffer({
-  label: "Vertices",
-  size: VERTICES.byteLength,
-  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-});
-device.queue.writeBuffer(vertexBuffer, /*offset*/0, VERTICES);
+const { vertexBuffer, vertexBufferLayout, vertexCount } = createVertexBuffer(device);
 
-const vertexBufferLayout: GPUVertexBufferLayout = {
-  arrayStride: 8,
-  attributes: [{
-    format: "float32x2",
-    offset: 0,
-    shaderLocation: 0,
-  }],
-};
 
-// Create the shaders
-const shaderModule = device.createShaderModule({
-  label: "Screen shader",
-  code: screenShader
+const mouseBuffer = device.createBuffer({
+  label: "Mouse position buffer",
+  size: 2 * Float32Array.BYTES_PER_ELEMENT,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 });
 
-const colorShaderModule = device.createShaderModule({
-  label: "Color shader",
-  code: colorShader
+const colorBuffer = device.createBuffer({
+  label: "Color buffer",
+  size: 3 * Float32Array.BYTES_PER_ELEMENT,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 });
 
-// Bind group layout
-const bindGroupLayout = device.createBindGroupLayout({
-  label: "Bind group layout",
+const dimensionBuffer = device.createBuffer({
+  label: "Data buffer",
+  size: 2 * Float32Array.BYTES_PER_ELEMENT,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(dimensionBuffer, 0, getDimension());
+
+const parameterData = new Float32Array([RADIUS]);
+const parameterBuffer = device.createBuffer({
+  label: "Parameters buffer",
+  size: Float32Array.BYTES_PER_ELEMENT,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(parameterBuffer, 0, parameterData);
+
+// Bind group
+const mouseBindGroup = device.createBindGroup({
+  label: "mouse group",
+  layout: layouts.binding.mouse,
   entries: [{
     binding: 0,
-    visibility: GPUShaderStage.FRAGMENT,
-    buffer: {},
-  },
-  {
+    resource: { buffer: mouseBuffer },
+  }, {
     binding: 1,
-    visibility: GPUShaderStage.FRAGMENT,
-    buffer: {},
+    resource: { buffer: colorBuffer },
   }]
 });
 
-// Pipeline layout
-const pipelineLayout = device.createPipelineLayout({
-  label: "Pipeline layout",
-  bindGroupLayouts: [bindGroupLayout],
-});
-
-// Uniform buffer
-const mousePositionBuffer = device.createBuffer({
-  label: "Mouse position buffer",
-  size: mouse.position.byteLength,
-  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-});
-device.queue.writeBuffer(mousePositionBuffer, 0, mouse.position);
-
-const data = new Float32Array([getAspectRatio(), RADIUS]);
-const dataBuffer = device.createBuffer({
-  label: "Data buffer",
-  size: data.byteLength,
-  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-});
-device.queue.writeBuffer(dataBuffer, 0, data);
-
-// Bind group
-const bindGroup = device.createBindGroup({
-  label: "Bind group",
-  layout: bindGroupLayout,
+const dimensionBindGroup = device.createBindGroup({
+  label: "mouse group",
+  layout: layouts.binding.dimension,
   entries: [{
     binding: 0,
-    resource: { buffer: mousePositionBuffer },
-  },
-  {
-    binding: 1,
-    resource: { buffer: dataBuffer },
+    resource: { buffer: dimensionBuffer },
+  }]
+});
+
+const parameterBindGroup = device.createBindGroup({
+  label: "parameter group",
+  layout: layouts.binding.parameter,
+  entries: [{
+    binding: 0,
+    resource: { buffer: parameterBuffer },
   }]
 });
 
 // Create the pipeline
 const screenPipeline = device.createRenderPipeline({
   label: "Screen pipeline",
-  layout: pipelineLayout,
+  layout: device.createPipelineLayout({
+    label: "Screen pipeline layout",
+    bindGroupLayouts: [layouts.binding.mouse, layouts.binding.dimension, layouts.binding.parameter],
+  }),
   vertex: {
-    module: shaderModule,
+    module: shaders.screen,
     entryPoint: "main",
     buffers: [vertexBufferLayout],
   },
   fragment: {
-    module: colorShaderModule,
+    module: shaders.splat,
     entryPoint: "main",
     targets: [{
       format: canvasFormat,
@@ -119,9 +109,13 @@ const render = () => {
 
   pass.setPipeline(screenPipeline);
   pass.setVertexBuffer(0, vertexBuffer);
-  device.queue.writeBuffer(mousePositionBuffer, 0, mouse.position);
-  pass.setBindGroup(0, bindGroup);
-  pass.draw(VERTICES.length / 2);
+  device.queue.writeBuffer(mouseBuffer, 0, mouse.position);
+  const [dx, dy] = mouse.movement;
+  device.queue.writeBuffer(colorBuffer, 0, new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]));
+  pass.setBindGroup(0, mouseBindGroup);
+  pass.setBindGroup(1, dimensionBindGroup);
+  pass.setBindGroup(2, parameterBindGroup);
+  pass.draw(vertexCount);
 
   pass.end();
   device.queue.submit([encoder.finish()]);
