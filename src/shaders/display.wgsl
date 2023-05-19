@@ -3,6 +3,5 @@
 
 @fragment
 fn main(@location(0) coord: vec2f) -> @location(0) vec4f {
-  let color = textureSample(ourTexture, ourSampler, coord);
-  return vec4f(color.rg, 0, 1);
+  return textureSample(ourTexture, ourSampler, coord);
 }

@@ -45,11 +45,34 @@ const textureBindingDescriptor: GPUBindGroupLayoutDescriptor = {
   }]
 }
 
+const doubleTexturesBindingDescriptor: GPUBindGroupLayoutDescriptor = {
+  label: "Texture binding group layout",
+  entries: [{
+    binding: 0,
+    visibility: GPUShaderStage.FRAGMENT,
+    sampler: {}, // sampler data
+  }, {
+    binding: 1,
+    visibility: GPUShaderStage.FRAGMENT, // source texture data
+    texture: {
+      sampleType: "float",
+    },
+  },
+  {
+    binding: 2,
+    visibility: GPUShaderStage.FRAGMENT,
+    texture: {
+      sampleType: "float",
+    }, // target texture data
+  }]
+}
+
 export const makeLayouts = (device: GPUDevice) => {
   const mouseBindGroupLayout = device.createBindGroupLayout(mouseBindingDescriptor);
   const dimensionBindGroupLayout = device.createBindGroupLayout(dimensionBindingDescriptor);
   const parameterBindGroupLayout = device.createBindGroupLayout(parameterBindingDescriptor);
   const textureBindGroupLayout = device.createBindGroupLayout(textureBindingDescriptor);
+  const doubleTexturesBindGroupLayout = device.createBindGroupLayout(doubleTexturesBindingDescriptor);
 
   return {
     binding: {
@@ -57,6 +80,7 @@ export const makeLayouts = (device: GPUDevice) => {
       dimension: dimensionBindGroupLayout,
       parameter: parameterBindGroupLayout,
       texture: textureBindGroupLayout,
+      doubleTextures: doubleTexturesBindGroupLayout,
     }
   }
 }

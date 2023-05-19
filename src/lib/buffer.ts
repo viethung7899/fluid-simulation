@@ -23,12 +23,12 @@ export const makeUniformBuffers = (device: GPUDevice) => {
 
   const parameterBuffer = device.createBuffer({
     label: "Parameters buffer",
-    size: Float32Array.BYTES_PER_ELEMENT,
+    size: 3 * Float32Array.BYTES_PER_ELEMENT,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
   const mouseBindGroup = device.createBindGroup({
-    label: "mouse group",
+    label: "Mouse group",
     layout: layouts.binding.mouse,
     entries: [{
       binding: 0,
@@ -40,7 +40,7 @@ export const makeUniformBuffers = (device: GPUDevice) => {
   });
 
   const dimensionBindGroup = device.createBindGroup({
-    label: "mouse group",
+    label: "Dimension group",
     layout: layouts.binding.dimension,
     entries: [{
       binding: 0,
@@ -49,7 +49,7 @@ export const makeUniformBuffers = (device: GPUDevice) => {
   });
 
   const parameterBindGroup = device.createBindGroup({
-    label: "parameter group",
+    label: "Parameter group",
     layout: layouts.binding.parameter,
     entries: [{
       binding: 0,
