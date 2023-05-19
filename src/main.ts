@@ -46,6 +46,7 @@ device.queue.writeBuffer(buffers.parameter, 0, new Float32Array([RADIUS]));
 
 // Create simulations texture
 const splatVelocityTexture = createSimulationTexture("rg16float");
+const curlTexture = createSimulationTexture("r16float");
 
 // Create the pipeline
 const splatPipeline = device.createRenderPipeline({
@@ -72,7 +73,7 @@ const screenPipeline = device.createRenderPipeline({
   label: "Screen pipeline",
   layout: device.createPipelineLayout({
     label: "Screen pipeline layout",
-    bindGroupLayouts: [layouts.binding.dimension, layouts.binding.texture],
+    bindGroupLayouts: [layouts.binding.texture],
   }),
   vertex: {
     module: shaders.screen,
@@ -88,50 +89,84 @@ const screenPipeline = device.createRenderPipeline({
   }
 });
 
-const textureBingGroup = device.createBindGroup({
-  layout: layouts.binding.texture,
-  entries: [{
-    binding: 0,
-    resource: sampler,
-  }, {
-    binding: 1,
-    resource: splatVelocityTexture.createView(),
-  }]
+const simulationPipelineLayout = device.createPipelineLayout({
+  label: "Simulation pipeline layout",
+  bindGroupLayouts: [layouts.binding.dimension, layouts.binding.parameter, layouts.binding.texture],
+})
+
+const curlPipeline = device.createRenderPipeline({
+  label: "Curl pipeline",
+  layout: simulationPipelineLayout,
+  vertex: {
+    module: shaders.screen,
+    entryPoint: "main",
+    buffers: [vertexBufferLayout],
+  },
+  fragment: {
+    module: shaders.simulation,
+    entryPoint: "curl",
+    targets: [{
+      format: curlTexture.format,
+    }]
+  }
 });
+
+// Texture bindign groups
+const createTextureBindGroup = (texture: GPUTexture) => {
+  return device.createBindGroup({
+    layout: layouts.binding.texture,
+    entries: [{
+      binding: 0,
+      resource: sampler,
+    }, {
+      binding: 1,
+      resource: texture.createView(),
+    }]
+  });
+}
+
+
+const splatVelocityGroup = createTextureBindGroup(splatVelocityTexture);
+const vorticityGroup = createTextureBindGroup(curlTexture);
+
+
+// Make pass
+const makeRenderPass = (encoder: GPUCommandEncoder, pipeline: GPURenderPipeline, target: GPUTexture) => {
+  const pass = encoder.beginRenderPass({
+    colorAttachments: [{
+      view: target.createView(),
+      loadOp: "clear",
+      storeOp: "store",
+    }]
+  });
+  pass.setPipeline(pipeline);
+  pass.setVertexBuffer(0, vertexBuffer);
+  return pass;
+}
 
 const render = () => {
   const encoder = device.createCommandEncoder();
-  const pass = encoder.beginRenderPass({
-    colorAttachments: [{
-      view: splatVelocityTexture.createView(),
-      loadOp: "clear",
-      storeOp: "store",
-    }]
-  });
 
-  pass.setPipeline(splatPipeline);
-  pass.setVertexBuffer(0, vertexBuffer);
+  const splatPass = makeRenderPass(encoder, splatPipeline, splatVelocityTexture);
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
   const [dx, dy] = mouse.movement;
   device.queue.writeBuffer(buffers.color, 0, new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]));
-  pass.setBindGroup(0, bindGroups.dimension);
-  pass.setBindGroup(1, bindGroups.mouse);
-  pass.setBindGroup(2, bindGroups.parameter);
-  pass.draw(vertexCount);
+  splatPass.setBindGroup(0, bindGroups.dimension);
+  splatPass.setBindGroup(1, bindGroups.mouse);
+  splatPass.setBindGroup(2, bindGroups.parameter);
+  splatPass.draw(vertexCount);
+  splatPass.end();
 
-  pass.end();
+  const curlPass = makeRenderPass(encoder, curlPipeline, curlTexture);
+  curlPass.setBindGroup(0, bindGroups.dimension);
+  curlPass.setBindGroup(1, bindGroups.parameter);
+  curlPass.setBindGroup(2, splatVelocityGroup);
+  curlPass.draw(vertexCount);
+  curlPass.end();
 
-  const screenPass = encoder.beginRenderPass({
-    colorAttachments: [{
-      view: screen.context.getCurrentTexture().createView(),
-      loadOp: "clear",
-      storeOp: "store",
-    }]
-  });
-  screenPass.setPipeline(screenPipeline);
-  screenPass.setVertexBuffer(0, vertexBuffer);
-  screenPass.setBindGroup(0, bindGroups.dimension);
-  screenPass.setBindGroup(1, textureBingGroup);
+
+  const screenPass = makeRenderPass(encoder, screenPipeline, screen.context.getCurrentTexture());
+  screenPass.setBindGroup(0, vorticityGroup);
   screenPass.draw(vertexCount);
   screenPass.end();
 
