@@ -22,6 +22,19 @@ const getDimension = () => new Float32Array([app.width, app.height]);
 const getAspectRatio = () => app.width / app.height;
 const shaders = makeShaderModules(device);
 
+const sampler = device.createSampler({
+  magFilter: "linear",
+  minFilter: "linear",
+});
+
+const createSimulationTexture = (format: GPUTextureFormat) => {
+  return device.createTexture({
+    size: [SIM_WIDTH, SIM_HEIGHT],
+    format,
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+}
+
 // Create buffers
 const { vertexBuffer, vertexBufferLayout, vertexCount } = createVertexBuffer(device);
 const { buffers, layouts, bindGroups } = makeUniformBuffers(device);
@@ -31,25 +44,15 @@ device.queue.writeBuffer(buffers.dimension, 0, getDimension());
 device.queue.writeBuffer(buffers.parameter, 0, new Float32Array([RADIUS]));
 
 
-// Create the texture
-const texture = device.createTexture({
-  size: [SIM_WIDTH, SIM_HEIGHT],
-  format: "rgba16float",
-  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-});
-
-// Create the sampler
-const sampler = device.createSampler({
-  magFilter: "linear",
-  minFilter: "linear",
-});
+// Create simulations texture
+const splatVelocityTexture = createSimulationTexture("rg16float");
 
 // Create the pipeline
 const splatPipeline = device.createRenderPipeline({
   label: "Screen pipeline",
   layout: device.createPipelineLayout({
     label: "Screen pipeline layout",
-    bindGroupLayouts: [layouts.binding.mouse, layouts.binding.dimension, layouts.binding.parameter],
+    bindGroupLayouts: [layouts.binding.dimension, layouts.binding.mouse, layouts.binding.parameter],
   }),
   vertex: {
     module: shaders.screen,
@@ -60,7 +63,7 @@ const splatPipeline = device.createRenderPipeline({
     module: shaders.splat,
     entryPoint: "main",
     targets: [{
-      format: texture.format,
+      format: splatVelocityTexture.format,
     }],
   }
 });
@@ -69,7 +72,7 @@ const screenPipeline = device.createRenderPipeline({
   label: "Screen pipeline",
   layout: device.createPipelineLayout({
     label: "Screen pipeline layout",
-    bindGroupLayouts: [layouts.binding.texture],
+    bindGroupLayouts: [layouts.binding.dimension, layouts.binding.texture],
   }),
   vertex: {
     module: shaders.screen,
@@ -92,7 +95,7 @@ const textureBingGroup = device.createBindGroup({
     resource: sampler,
   }, {
     binding: 1,
-    resource: texture.createView(),
+    resource: splatVelocityTexture.createView(),
   }]
 });
 
@@ -100,7 +103,7 @@ const render = () => {
   const encoder = device.createCommandEncoder();
   const pass = encoder.beginRenderPass({
     colorAttachments: [{
-      view: texture.createView(),
+      view: splatVelocityTexture.createView(),
       loadOp: "clear",
       storeOp: "store",
     }]
@@ -111,8 +114,8 @@ const render = () => {
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
   const [dx, dy] = mouse.movement;
   device.queue.writeBuffer(buffers.color, 0, new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]));
-  pass.setBindGroup(0, bindGroups.mouse);
-  pass.setBindGroup(1, bindGroups.dimension);
+  pass.setBindGroup(0, bindGroups.dimension);
+  pass.setBindGroup(1, bindGroups.mouse);
   pass.setBindGroup(2, bindGroups.parameter);
   pass.draw(vertexCount);
 
@@ -127,12 +130,13 @@ const render = () => {
   });
   screenPass.setPipeline(screenPipeline);
   screenPass.setVertexBuffer(0, vertexBuffer);
-  screenPass.setBindGroup(0, textureBingGroup);
+  screenPass.setBindGroup(0, bindGroups.dimension);
+  screenPass.setBindGroup(1, textureBingGroup);
   screenPass.draw(vertexCount);
   screenPass.end();
 
   device.queue.submit([encoder.finish()]);
-  requestAnimationFrame(render);
+  // requestAnimationFrame(render);
 }
 
 render();
