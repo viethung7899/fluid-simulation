@@ -35,7 +35,13 @@ const textureBindingDescriptor: GPUBindGroupLayoutDescriptor = {
   entries: [{
     binding: 0,
     visibility: GPUShaderStage.FRAGMENT,
-    texture: {}, // texture data
+    sampler: {}, // texture data
+  }, {
+    binding: 1,
+    visibility: GPUShaderStage.FRAGMENT, // texture data
+    texture: {
+      sampleType: "float",
+    },
   }]
 }
 
