@@ -1,10 +1,16 @@
 import { makeUniformBuffers } from "./lib/buffer";
 import { initalizeWebGPU } from "./lib/initialize";
 import { useMouse } from "./lib/mouse";
-import { DELTA, DENSITY_DIFFUSION, FORCE_FACTOR, PRESSURE, PRESSURE_ITERATIONS, RADIUS, RESOLUTION, VELOCITY_DIFFUSION, VORTICITY } from "./lib/parameter";
+import {
+  DELTA,
+  RESOLUTION,
+  makeController
+} from "./lib/parameter";
 import { useScreen } from "./lib/screen";
 import { makeShaderModules } from "./lib/shader";
 import { createVertexBuffer } from "./lib/vertices";
+
+const controller = makeController();
 
 const app = document.querySelector<HTMLCanvasElement>('#app')!;
 const screen = useScreen(app);
@@ -306,14 +312,15 @@ const transferTexture = (encoder: GPUCommandEncoder, source: GPUTexture, target:
 
 const zero = new Float32Array([0, 0, 0]);
 const dye = new Float32Array([0.1, 0, 0]);
-const velocityParams = new Float32Array([DELTA, VORTICITY, PRESSURE, VELOCITY_DIFFUSION]);
-const densityParams = new Float32Array([DELTA, VORTICITY, PRESSURE, DENSITY_DIFFUSION]);
 
 const render = () => {
   updateTextureOnWindowSize();
 
+  const velocityParams = new Float32Array([DELTA, controller.vorticity, controller.pressure, controller.velocityDiffusion]);
+  const densityParams = new Float32Array([DELTA, controller.vorticity, controller.pressure, controller.densityDiffusion]);
+
   device.queue.writeBuffer(buffers.dimension, 0, getDimension());
-  device.queue.writeBuffer(buffers.radius, 0, new Float32Array([RADIUS]));
+  device.queue.writeBuffer(buffers.radius, 0, new Float32Array([controller.radius]));
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
 
   const velocityEncoder = device.createCommandEncoder();
@@ -322,7 +329,8 @@ const render = () => {
 
   const splatVelocityPass = makeRenderPass(velocityEncoder, splatVelocityPipeline, textures.processedVelocity);
   const [dx, dy] = mouse.movement;
-  device.queue.writeBuffer(buffers.color, 0, mouse.isPointerDown ? new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]) : zero);
+  device.queue.writeBuffer(buffers.color, 0, 
+    mouse.isPointerDown ? new Float32Array([dx * controller.forceFactor * getAspectRatio(), dy * controller.forceFactor, 0]) : zero);
   splatVelocityPass.setBindGroup(0, bindGroups.dimension);
   splatVelocityPass.setBindGroup(1, bindGroups.mouse);
   splatVelocityPass.setBindGroup(2, createTextureBindGroup(textures.velocity));
@@ -359,7 +367,7 @@ const render = () => {
 
   transferTexture(velocityEncoder, textures.processedPressure, textures.pressure);
 
-  for (let i = 0; i < PRESSURE_ITERATIONS; i++) {
+  for (let i = 0; i < controller.pressureIterations; i++) {
     const pressurePass = makeRenderPass(velocityEncoder, pressurePipeline, textures.processedPressure);
     pressurePass.setBindGroup(0, bindGroups.parameter);
     pressurePass.setBindGroup(1, createCombineTextureBindGroup(textures.pressure, textures.divergence));

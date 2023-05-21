@@ -1,11 +1,10 @@
 export const useScreen = (canvas: HTMLCanvasElement) => {
-  let currentWidth = window.innerWidth;
-  let currentHeight = window.innerHeight;
-  let adjustedWidth = currentWidth;
-  let adjustedHeight = currentHeight;
 
-  canvas.width = currentWidth;
-  canvas.height = currentHeight;
+  canvas.width =  window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let adjustedWidth = canvas.width;
+  let adjustedHeight = canvas.height;
 
   window.onresize = () => {
     adjustedWidth = window.innerWidth;
@@ -14,10 +13,10 @@ export const useScreen = (canvas: HTMLCanvasElement) => {
 
   return {
     get currentWidth() {
-      return currentWidth;
+      return canvas.width;
     },
     get currentHeight() {
-      return currentHeight;
+      return canvas.height;
     },
     get adjustedWidth() {
       return adjustedWidth;
@@ -26,11 +25,11 @@ export const useScreen = (canvas: HTMLCanvasElement) => {
       return adjustedHeight;
     },
     updateSize() {
-      currentWidth = adjustedWidth;
-      currentHeight = adjustedHeight;
+      canvas.width = adjustedWidth;
+      canvas.height = adjustedHeight;
     },
     hasChangedSize() {
-      return currentWidth !== adjustedWidth || currentHeight !== adjustedHeight;
+      return canvas.width !== adjustedWidth || canvas.height !== adjustedHeight;
     }
 
   }
