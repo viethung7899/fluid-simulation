@@ -1,8 +1,7 @@
 import { Pane } from 'tweakpane';
 
-export const RADIUS = 0.0025;
+export const RADIUS = 0.25;
 export const FORCE_FACTOR = 6000;
-export const DELTA = 1 / 60;
 export const VORTICITY = 30;
 export const PRESSURE = 0.8;
 export const PRESSURE_ITERATIONS = 20;
@@ -25,9 +24,9 @@ export const makeController = () => {
     title: 'Fluid simulation',
   });
   const radius = pane.addInput(parameters, 'radius', {
-    min: 0.0001,
-    max: 0.01,
-    step: 0.0001,
+    min: 0.01,
+    max: 1,
+    step: 0.01,
   })
   radius.on("change", (event) => parameters.radius = event.value);
 
@@ -55,7 +54,7 @@ export const makeController = () => {
 
   const pressureIterations = pane.addInput(parameters, 'pressureIterations', {
     min: 1,
-    max: 100,
+    max: 20,
     step: 1,
     label: "pressure iterations"
   })
@@ -63,7 +62,7 @@ export const makeController = () => {
 
   const velocityDiffusion = pane.addInput(parameters, 'velocityDiffusion', {
     min: 0,
-    max: 1,
+    max: 4,
     step: 0.01,
     label: "velocity diffusion"
   })
@@ -71,7 +70,7 @@ export const makeController = () => {
 
   const densityDiffusion = pane.addInput(parameters, 'densityDiffusion', {
     min: 0,
-    max: 10,
+    max: 4,
     step: 0.01,
     label: "density diffusion"
   })

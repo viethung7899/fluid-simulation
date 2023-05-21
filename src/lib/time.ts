@@ -8,7 +8,7 @@ export const useTime = () => {
       const now = Date.now();
       const delta = (now - lastUpdated) / 1000;
       lastUpdated = now;
-      return Math.min(delta, 0.016666);
+      return Math.min(delta, DELTA);
     },
     get lastUpdateInSeconds() {
       return lastUpdated / 1000;

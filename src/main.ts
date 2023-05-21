@@ -7,8 +7,8 @@ import {
 } from "./lib/parameter";
 import { useScreen } from "./lib/screen";
 import { makeShaderModules } from "./lib/shader";
+import { useTime } from "./lib/time";
 import { createVertexBuffer } from "./lib/vertices";
-import {useTime} from "./lib/time";
 
 const { device, register } = await initalizeWebGPU();
 const controller = makeController();
@@ -313,8 +313,10 @@ const transferTexture = (encoder: GPUCommandEncoder, source: GPUTexture, target:
 const zero = new Float32Array([0, 0, 0]);
 
 const getDye = () => {
-  const red = Math.sin(time.lastUpdateInSeconds * Math.PI) * 0.1 + 0.1;
-  return [red, 0.1, 0.3]
+  const red = Math.sin(time.lastUpdateInSeconds * Math.PI / 2 - 2 * Math.PI / 3) * 0.1 + 0.2;
+  const green = Math.sin(time.lastUpdateInSeconds * Math.PI / 2) * 0.1 + 0.2;
+  const blue = Math.sin(time.lastUpdateInSeconds * Math.PI / 2 + 2 * Math.PI / 3) * 0.1 + 0.2;
+  return [red, green, blue]
 }
 
 const render = () => {
@@ -325,7 +327,7 @@ const render = () => {
   const densityParams = new Float32Array([delta, controller.vorticity, controller.pressure, controller.densityDiffusion]);
 
   device.queue.writeBuffer(buffers.dimension, 0, new Float32Array(getSimulationDimension()));
-  device.queue.writeBuffer(buffers.radius, 0, new Float32Array([controller.radius]));
+  device.queue.writeBuffer(buffers.radius, 0, new Float32Array([controller.radius / 100]));
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
 
   const velocityEncoder = device.createCommandEncoder();
