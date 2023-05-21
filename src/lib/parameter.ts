@@ -6,3 +6,4 @@ export const PRESSURE = 0.8;
 export const PRESSURE_ITERATIONS = 20;
 export const VELOCITY_DIFFUSION = 0.2;
 export const DENSITY_DIFFUSION = 1;
+export const RESOLUTION = 128;

@@ -1,4 +1,6 @@
-export const useMouse = (element: HTMLCanvasElement) => {
+import type {Screen} from "./screen";
+
+export const useMouse = (element: HTMLCanvasElement, screen: Screen) => {
   let isPointerDown = false;
   let position = new Float32Array([0, 0]);
   let movement = new Float32Array([0, 0]);
@@ -12,10 +14,10 @@ export const useMouse = (element: HTMLCanvasElement) => {
   });
 
   element.addEventListener("pointermove", (event) => {
-    position[0] = event.offsetX / element.width;
-    position[1] = event.offsetY / element.height;
-    movement[0] = event.movementX / element.width;
-    movement[1] = event.movementY / element.height;
+    position[0] = event.offsetX / screen.currentWidth;
+    position[1] = event.offsetY / screen.currentHeight;
+    movement[0] = event.movementX / screen.currentWidth;
+    movement[1] = event.movementY / screen.currentHeight;
   });
 
   element.addEventListener("pointerleave", () => {
