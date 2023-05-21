@@ -1,5 +1,4 @@
 export const useScreen = (canvas: HTMLCanvasElement) => {
-
   canvas.width =  window.innerWidth;
   canvas.height = window.innerHeight;
 

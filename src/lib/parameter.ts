@@ -3,7 +3,7 @@ import { Pane } from 'tweakpane';
 export const RADIUS = 0.0025;
 export const FORCE_FACTOR = 6000;
 export const DELTA = 1 / 60;
-export const VORTICITY = 5;
+export const VORTICITY = 30;
 export const PRESSURE = 0.8;
 export const PRESSURE_ITERATIONS = 20;
 export const VELOCITY_DIFFUSION = 0.2;
@@ -19,7 +19,6 @@ export const makeController = () => {
     pressureIterations: PRESSURE_ITERATIONS,
     velocityDiffusion: VELOCITY_DIFFUSION,
     densityDiffusion: DENSITY_DIFFUSION,
-    resolution: RESOLUTION,
   }
 
   const pane = new Pane({
@@ -42,8 +41,8 @@ export const makeController = () => {
 
   const vorticity = pane.addInput(parameters, 'vorticity', {
     min: 0,
-    max: 10,
-    step: 0.1,
+    max: 50,
+    step: 1,
   })
   vorticity.on("change", (event) => parameters.vorticity = event.value);
 

@@ -2,22 +2,22 @@ import { makeUniformBuffers } from "./lib/buffer";
 import { initalizeWebGPU } from "./lib/initialize";
 import { useMouse } from "./lib/mouse";
 import {
-  DELTA,
   RESOLUTION,
   makeController
 } from "./lib/parameter";
 import { useScreen } from "./lib/screen";
 import { makeShaderModules } from "./lib/shader";
 import { createVertexBuffer } from "./lib/vertices";
+import {useTime} from "./lib/time";
 
+const { device, register } = await initalizeWebGPU();
 const controller = makeController();
+const time = useTime();
 
 const app = document.querySelector<HTMLCanvasElement>('#app')!;
 const screen = useScreen(app);
-const { device, register } = await initalizeWebGPU();
-const webgpu = register(app);
+const { context, canvasFormat } = register(app);
 const mouse = useMouse(app, screen);
-const getDimension = () => new Float32Array([screen.currentWidth, screen.currentHeight]);
 const getAspectRatio = () => screen.currentWidth / screen.currentHeight;
 const getSimulationDimension = () => {
   const aspectRatio = getAspectRatio();
@@ -185,7 +185,7 @@ const screenPipeline = device.createRenderPipeline({
     module: shaders.display,
     entryPoint: "main",
     targets: [{
-      format: webgpu.canvasFormat
+      format: canvasFormat
     }]
   }
 });
@@ -311,15 +311,20 @@ const transferTexture = (encoder: GPUCommandEncoder, source: GPUTexture, target:
 }
 
 const zero = new Float32Array([0, 0, 0]);
-const dye = new Float32Array([0.1, 0, 0]);
+
+const getDye = () => {
+  const red = Math.sin(time.lastUpdateInSeconds * Math.PI) * 0.1 + 0.1;
+  return [red, 0.1, 0.3]
+}
 
 const render = () => {
   updateTextureOnWindowSize();
+  const delta = time.getTimeStepInSeconds();
 
-  const velocityParams = new Float32Array([DELTA, controller.vorticity, controller.pressure, controller.velocityDiffusion]);
-  const densityParams = new Float32Array([DELTA, controller.vorticity, controller.pressure, controller.densityDiffusion]);
+  const velocityParams = new Float32Array([delta, controller.vorticity, controller.pressure, controller.velocityDiffusion]);
+  const densityParams = new Float32Array([delta, controller.vorticity, controller.pressure, controller.densityDiffusion]);
 
-  device.queue.writeBuffer(buffers.dimension, 0, getDimension());
+  device.queue.writeBuffer(buffers.dimension, 0, new Float32Array(getSimulationDimension()));
   device.queue.writeBuffer(buffers.radius, 0, new Float32Array([controller.radius]));
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
 
@@ -329,7 +334,7 @@ const render = () => {
 
   const splatVelocityPass = makeRenderPass(velocityEncoder, splatVelocityPipeline, textures.processedVelocity);
   const [dx, dy] = mouse.movement;
-  device.queue.writeBuffer(buffers.color, 0, 
+  device.queue.writeBuffer(buffers.color, 0,
     mouse.isPointerDown ? new Float32Array([dx * controller.forceFactor * getAspectRatio(), dy * controller.forceFactor, 0]) : zero);
   splatVelocityPass.setBindGroup(0, bindGroups.dimension);
   splatVelocityPass.setBindGroup(1, bindGroups.mouse);
@@ -398,7 +403,7 @@ const render = () => {
   device.queue.writeBuffer(buffers.parameter, 0, densityParams);
 
   const splatDensityPass = makeRenderPass(screenEncoder, splatDensityPipeline, textures.processedDensity);
-  device.queue.writeBuffer(buffers.color, 0, mouse.isPointerDown ? dye : zero);
+  device.queue.writeBuffer(buffers.color, 0, mouse.isPointerDown ? new Float32Array(getDye()) : zero);
   splatDensityPass.setBindGroup(0, bindGroups.dimension);
   splatDensityPass.setBindGroup(1, bindGroups.mouse);
   splatDensityPass.setBindGroup(2, createTextureBindGroup(textures.density));
@@ -415,7 +420,7 @@ const render = () => {
 
   transferTexture(screenEncoder, textures.processedDensity, textures.density);
 
-  const screenPass = makeRenderPass(screenEncoder, screenPipeline, webgpu.context.getCurrentTexture());
+  const screenPass = makeRenderPass(screenEncoder, screenPipeline, context.getCurrentTexture());
   screenPass.setBindGroup(0, createTextureBindGroup(textures.density));
   screenPass.draw(vertexCount);
   screenPass.end();
