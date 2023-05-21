@@ -75,16 +75,18 @@ export const makeController = () => {
     label: "density diffusion"
   }).on("change", (event) => parameters.densityDiffusion = event.value);
 
-  pane.addSeparator();
-  const fpsGraph = pane.addBlade({
+  const fps = pane.addFolder({
+    title: "Frame rate",
+  });
+  const fpsGraph = fps.addBlade({
     view: 'fpsgraph',
-    label: 'frame rate',
     lineCount: 2,
   }) as any;
 
-
-  pane.addSeparator();
-  pane.addButton({
+  const other = pane.addFolder({
+    title: "Other",
+  });
+  other.addButton({
     title: "View source code",
   }).on("click", () => {
     window.open(LINK, "_blank");
