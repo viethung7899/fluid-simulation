@@ -12,10 +12,9 @@ struct Neighbor {
   right: vec2f,
 };
 
-@group(0) @binding(0) var<uniform> res: vec2f;
-@group(1) @binding(0) var<uniform> params: Parameter;
-@group(2) @binding(0) var sam: sampler;
-@group(2) @binding(1) var texture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> params: Parameter;
+@group(1) @binding(0) var sam: sampler;
+@group(1) @binding(1) var texture: texture_2d<f32>;
 
 fn getSurrounding(texture: texture_2d<f32>, coord: vec2f) -> Neighbor {
   var neighbor: Neighbor;

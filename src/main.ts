@@ -1,7 +1,7 @@
 import { makeUniformBuffers } from "./lib/buffer";
 import { initalizeWebGPU } from "./lib/initialize";
 import { useMouse } from "./lib/mouse";
-import { DELTA, FORCE_FACTOR, PRESSURE, PRESSURE_ITERATIONS, RADIUS, VELOCITY_DIFFUSION, VORTICITY } from "./lib/parameter";
+import { DELTA, DENSITY_DIFFUSION, FORCE_FACTOR, PRESSURE, PRESSURE_ITERATIONS, RADIUS, VELOCITY_DIFFUSION, VORTICITY } from "./lib/parameter";
 import { makeShaderModules } from "./lib/shader";
 import { createVertexBuffer } from "./lib/vertices";
 
@@ -52,11 +52,6 @@ const vertex = {
   buffers: [vertexBufferLayout],
 }
 
-// Write to buffres
-device.queue.writeBuffer(buffers.dimension, 0, getDimension());
-device.queue.writeBuffer(buffers.radius, 0, new Float32Array([RADIUS]));
-device.queue.writeBuffer(buffers.parameter, 0, new Float32Array([DELTA, VORTICITY, PRESSURE, VELOCITY_DIFFUSION]));
-
 // Texture bind groups
 const createTextureBindGroup = (texture: GPUTexture) => {
   return device.createBindGroup({
@@ -89,7 +84,7 @@ const createCombineTextureBindGroup = (source: GPUTexture, target: GPUTexture) =
 
 // Create simulations texture
 // Begin state
-const densityTexture = createSimulationTexture();
+const densityTexture = createScreenTexture();
 const velocityTexture = createSimulationTexture("rg16float");
 const pressureTexture = createSimulationTexture("r16float");
 
@@ -98,19 +93,9 @@ const curlTexture = createSimulationTexture("r16float");
 const divergenceTexture = createSimulationTexture("r16float");
 
 // Procceced state
-const processedVelocityTexture = createSimulationTexture("rg16float");
+const processedVelocityTexture: GPUTexture = createSimulationTexture("rg16float");
 const processedPressureTexture = createSimulationTexture("r16float");
-const processedDensityTexture = createSimulationTexture();
-
-// Bind texture groups
-const densityGroup = createTextureBindGroup(densityTexture);
-const velocityGroup = createTextureBindGroup(velocityTexture);
-const pressureGroup = createTextureBindGroup(pressureTexture);
-const curlAndVelocityGroup = createCombineTextureBindGroup(curlTexture, velocityTexture);
-const pressureAndDivergenceGroup = createCombineTextureBindGroup(pressureTexture, divergenceTexture);
-const pressureAndVelocityGroup = createCombineTextureBindGroup(pressureTexture, velocityTexture);
-const velocityCombineGroup = createCombineTextureBindGroup(velocityTexture, velocityTexture);
-const densityAndVelocityGroup = createCombineTextureBindGroup(densityTexture, velocityTexture);
+const processedDensityTexture = createScreenTexture();
 
 // Create pipelines
 const splatDensityPipeline = device.createRenderPipeline({
@@ -164,12 +149,12 @@ const screenPipeline = device.createRenderPipeline({
 
 const simulationPipelineLayout = device.createPipelineLayout({
   label: "Simulation pipeline layout",
-  bindGroupLayouts: [layouts.binding.dimension, layouts.binding.parameter, layouts.binding.texture],
+  bindGroupLayouts: [layouts.binding.parameter, layouts.binding.texture],
 })
 
 const combinePipelineLayout = device.createPipelineLayout({
-  label: "Simulation pipeline layout",
-  bindGroupLayouts: [layouts.binding.dimension, layouts.binding.parameter, layouts.binding.doubleTextures],
+  label: "combine texture pipeline layout",
+  bindGroupLayouts: [layouts.binding.parameter, layouts.binding.doubleTextures],
 })
 
 const curlPipeline = device.createRenderPipeline({
@@ -274,7 +259,6 @@ const makeRenderPass = (encoder: GPUCommandEncoder, pipeline: GPURenderPipeline,
   return pass;
 }
 
-const displayGroup = createTextureBindGroup(velocityTexture);
 const transferTexture = (encoder: GPUCommandEncoder, source: GPUTexture, target: GPUTexture) => {
   encoder.copyTextureToTexture(
     { texture: source },
@@ -283,97 +267,114 @@ const transferTexture = (encoder: GPUCommandEncoder, source: GPUTexture, target:
   )
 }
 
+const zero = new Float32Array([0, 0, 0]);
+const dye = new Float32Array([0.1, 0, 0]);
+const velocityParams = new Float32Array([DELTA, VORTICITY, PRESSURE, VELOCITY_DIFFUSION]);
+const densityParams = new Float32Array([DELTA, VORTICITY, PRESSURE, DENSITY_DIFFUSION]);
+
 const render = () => {
-  const encoder = device.createCommandEncoder();
-
+  device.queue.writeBuffer(buffers.dimension, 0, getDimension());
+  device.queue.writeBuffer(buffers.radius, 0, new Float32Array([RADIUS]));
   device.queue.writeBuffer(buffers.mouse, 0, mouse.position);
+  
+  const velocityEncoder = device.createCommandEncoder();
+  device.queue.writeBuffer(buffers.parameter, 0, velocityParams);
 
-  const splatVelocityPass = makeRenderPass(encoder, splatVelocityPipeline, processedVelocityTexture);
+
+  const splatVelocityPass = makeRenderPass(velocityEncoder, splatVelocityPipeline, processedVelocityTexture);
   const [dx, dy] = mouse.movement;
-  device.queue.writeBuffer(buffers.color, 0, new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]));
+  device.queue.writeBuffer(buffers.color, 0, mouse.isPointerDown ? new Float32Array([dx * FORCE_FACTOR * getAspectRatio(), dy * FORCE_FACTOR, 0]) : zero);
   splatVelocityPass.setBindGroup(0, bindGroups.dimension);
   splatVelocityPass.setBindGroup(1, bindGroups.mouse);
-  splatVelocityPass.setBindGroup(2, velocityGroup);
+  splatVelocityPass.setBindGroup(2, createTextureBindGroup(velocityTexture));
   splatVelocityPass.draw(vertexCount);
   splatVelocityPass.end();
 
-  transferTexture(encoder, processedVelocityTexture, velocityTexture);
+  transferTexture(velocityEncoder, processedVelocityTexture, velocityTexture);
 
-  const curlPass = makeRenderPass(encoder, curlPipeline, curlTexture);
-  curlPass.setBindGroup(0, bindGroups.dimension);
-  curlPass.setBindGroup(1, bindGroups.parameter);
-  curlPass.setBindGroup(2, velocityGroup);
+  const curlPass = makeRenderPass(velocityEncoder, curlPipeline, curlTexture);
+  curlPass.setBindGroup(0, bindGroups.parameter);
+  curlPass.setBindGroup(1, createTextureBindGroup(velocityTexture));
   curlPass.draw(vertexCount);
   curlPass.end();
 
-  const vorticityPass = makeRenderPass(encoder, vorticityPipeline, processedVelocityTexture);
-  vorticityPass.setBindGroup(0, bindGroups.dimension);
-  vorticityPass.setBindGroup(1, bindGroups.parameter);
-  vorticityPass.setBindGroup(2, curlAndVelocityGroup);
+  const vorticityPass = makeRenderPass(velocityEncoder, vorticityPipeline, processedVelocityTexture);
+  vorticityPass.setBindGroup(0, bindGroups.parameter);
+  vorticityPass.setBindGroup(1, createCombineTextureBindGroup(curlTexture, velocityTexture));
   vorticityPass.draw(vertexCount);
   vorticityPass.end();
 
-  transferTexture(encoder, processedVelocityTexture, velocityTexture);
+  transferTexture(velocityEncoder, processedVelocityTexture, velocityTexture);
 
-  const divergencePass = makeRenderPass(encoder, divergencePipeline, divergenceTexture);
-  divergencePass.setBindGroup(0, bindGroups.dimension);
-  divergencePass.setBindGroup(1, bindGroups.parameter);
-  divergencePass.setBindGroup(2, velocityGroup);
+  const divergencePass = makeRenderPass(velocityEncoder, divergencePipeline, divergenceTexture);
+  divergencePass.setBindGroup(0, bindGroups.parameter);
+  divergencePass.setBindGroup(1, createTextureBindGroup(velocityTexture));
   divergencePass.draw(vertexCount);
   divergencePass.end();
 
-  const clearPressurePass = makeRenderPass(encoder, clearPressurePipeline, processedPressureTexture);
-  clearPressurePass.setBindGroup(0, bindGroups.dimension);
-  clearPressurePass.setBindGroup(1, bindGroups.parameter);
-  clearPressurePass.setBindGroup(2, pressureGroup);
+  const clearPressurePass = makeRenderPass(velocityEncoder, clearPressurePipeline, processedPressureTexture);
+  clearPressurePass.setBindGroup(0, bindGroups.parameter);
+  clearPressurePass.setBindGroup(1, createTextureBindGroup(pressureTexture));
   clearPressurePass.draw(vertexCount);
   clearPressurePass.end();
 
-  transferTexture(encoder, processedPressureTexture, pressureTexture);
+  transferTexture(velocityEncoder, processedPressureTexture, pressureTexture);
 
   for (let i = 0; i < PRESSURE_ITERATIONS; i++) {
-    const pressurePass = makeRenderPass(encoder, pressurePipeline, processedPressureTexture);
-    pressurePass.setBindGroup(0, bindGroups.dimension);
-    pressurePass.setBindGroup(1, bindGroups.parameter);
-    pressurePass.setBindGroup(2, pressureAndDivergenceGroup);
+    const pressurePass = makeRenderPass(velocityEncoder, pressurePipeline, processedPressureTexture);
+    pressurePass.setBindGroup(0, bindGroups.parameter);
+    pressurePass.setBindGroup(1, createCombineTextureBindGroup(pressureTexture, divergenceTexture));
     pressurePass.draw(vertexCount);
     pressurePass.end();
-    transferTexture(encoder, processedPressureTexture, pressureTexture);
+    transferTexture(velocityEncoder, processedPressureTexture, pressureTexture);
   }
 
-  const subtractPressurePass = makeRenderPass(encoder, subtractPressurePipeline, processedVelocityTexture);
-  subtractPressurePass.setBindGroup(0, bindGroups.dimension);
-  subtractPressurePass.setBindGroup(1, bindGroups.parameter);
-  subtractPressurePass.setBindGroup(2, pressureAndVelocityGroup);
+  const subtractPressurePass = makeRenderPass(velocityEncoder, subtractPressurePipeline, processedVelocityTexture);
+  subtractPressurePass.setBindGroup(0, bindGroups.parameter);
+  subtractPressurePass.setBindGroup(1, createCombineTextureBindGroup(pressureTexture, velocityTexture));
   subtractPressurePass.draw(vertexCount);
   subtractPressurePass.end();
 
-  transferTexture(encoder, processedVelocityTexture, velocityTexture);
+  transferTexture(velocityEncoder, processedVelocityTexture, velocityTexture);
 
-  const advectVelocityPass = makeRenderPass(encoder, advectVelocityPipeline, processedVelocityTexture);
-  advectVelocityPass.setBindGroup(0, bindGroups.dimension);
-  advectVelocityPass.setBindGroup(1, bindGroups.parameter);
-  advectVelocityPass.setBindGroup(2, velocityCombineGroup);
+  const advectVelocityPass = makeRenderPass(velocityEncoder, advectVelocityPipeline, processedVelocityTexture);
+  advectVelocityPass.setBindGroup(0, bindGroups.parameter);
+  advectVelocityPass.setBindGroup(1, createCombineTextureBindGroup(velocityTexture, velocityTexture));
   advectVelocityPass.draw(vertexCount);
   advectVelocityPass.end();
 
-  transferTexture(encoder, processedVelocityTexture, velocityTexture);
+  transferTexture(velocityEncoder, processedVelocityTexture, velocityTexture);
 
-  // const advectDenistyPass = makeRenderPass(encoder, advectDenistyPipeline, processedDensityTexture);
-  // advectDenistyPass.setBindGroup(0, bindGroups.dimension);
-  // advectDenistyPass.setBindGroup(1, bindGroups.parameter);
-  // advectDenistyPass.setBindGroup(2, densityAndVelocityGroup);
-  // advectDenistyPass.draw(vertexCount);
-  // advectDenistyPass.end();
+  device.queue.submit([velocityEncoder.finish()]);
 
-  // transferTexture(encoder, processedDensityTexture, densityTexture);
+  const screenEncoder = device.createCommandEncoder();
+  device.queue.writeBuffer(buffers.parameter, 0, densityParams);
 
-  const screenPass = makeRenderPass(encoder, screenPipeline, screen.context.getCurrentTexture());
-  screenPass.setBindGroup(0, displayGroup);
+  const splatDensityPass = makeRenderPass(screenEncoder, splatDensityPipeline, processedDensityTexture);
+  device.queue.writeBuffer(buffers.color, 0, mouse.isPointerDown ? dye : zero);
+  splatDensityPass.setBindGroup(0, bindGroups.dimension);
+  splatDensityPass.setBindGroup(1, bindGroups.mouse);
+  splatDensityPass.setBindGroup(2, createTextureBindGroup(densityTexture));
+  splatDensityPass.draw(vertexCount);
+  splatDensityPass.end();
+
+  transferTexture(screenEncoder, processedDensityTexture, densityTexture);
+
+  const advectDenistyPass = makeRenderPass(screenEncoder, advectDenistyPipeline, processedDensityTexture);
+  advectDenistyPass.setBindGroup(0, bindGroups.parameter);
+  advectDenistyPass.setBindGroup(1, createCombineTextureBindGroup(densityTexture, velocityTexture));
+  advectDenistyPass.draw(vertexCount);
+  advectDenistyPass.end();
+
+  transferTexture(screenEncoder, processedDensityTexture, densityTexture);
+
+  const screenPass = makeRenderPass(screenEncoder, screenPipeline, screen.context.getCurrentTexture());
+  screenPass.setBindGroup(0, createTextureBindGroup(densityTexture));
   screenPass.draw(vertexCount);
   screenPass.end();
 
-  device.queue.submit([encoder.finish()]);
+  device.queue.submit([screenEncoder.finish()]);
+
   requestAnimationFrame(render);
 }
 
