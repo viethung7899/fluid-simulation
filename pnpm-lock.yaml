@@ -1,6 +1,9 @@
 lockfileVersion: '6.0'
 
 dependencies:
+  '@tweakpane/plugin-essentials':
+    specifier: ^0.1.8
+    version: 0.1.8(tweakpane@3.1.9)
   tweakpane:
     specifier: ^3.1.9
     version: 3.1.9
@@ -222,6 +225,14 @@ packages:
   /@tweakpane/core@1.1.8:
     resolution: {integrity: sha512-psvBf6Cbm3YSZOTmDFWkcGzHYMnw7gVZM3jw+TfbzErIC+sMXPQb85h4ayW04w2u7AGg8jD0gHXSCg5wd+rafg==}
     dev: true
+
+  /@tweakpane/plugin-essentials@0.1.8(tweakpane@3.1.9):
+    resolution: {integrity: sha512-tWBXzWafcjiq+/XvZnOgSz0B+YikwZj0NnqiZPba+AwTiDqNk/6PU3so0Bs0qyxLIJKT/+AUPRL8jBmtERYzwA==}
+    peerDependencies:
+      tweakpane: ^3.1.4
+    dependencies:
+      tweakpane: 3.1.9
+    dev: false
 
   /@webgpu/types@0.1.32:
     resolution: {integrity: sha512-H6JRAvRonWxqREjxXMZgQmdgIFPe6mykLgdrHY7EQE7YihMKd/SjtSGilUmMKECVdUMg2IQB9vzaXDiTj1AxZg==}
