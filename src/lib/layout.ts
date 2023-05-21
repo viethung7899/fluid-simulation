@@ -9,6 +9,11 @@ const mouseBindingDescriptor: GPUBindGroupLayoutDescriptor = {
     binding: 1,
     visibility: GPUShaderStage.FRAGMENT,
     buffer: {}, // color data
+  },
+  {
+    binding: 2,
+    visibility: GPUShaderStage.FRAGMENT,
+    buffer: {}, // radius data
   }]
 };
 

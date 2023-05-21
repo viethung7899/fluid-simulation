@@ -1,7 +1,8 @@
 struct Parameter {
-  radius: f32,
   delta: f32,
-  vorticity: f32
+  vorticity: f32,
+  pressure: f32,
+  diffusion: f32
 };
 
 struct Neighbor {
@@ -60,4 +61,9 @@ fn divergence(@location(0) coord: vec2f) -> @location(0) f32 {
   }
 
   return 0.5 * (right - left + top - bottom);
+}
+
+@fragment
+fn clearPressure(@location(0) coord: vec2f) -> @location(0) f32 {
+  return params.pressure * textureSample(texture, sam, coord).x;
 }

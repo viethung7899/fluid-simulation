@@ -15,6 +15,12 @@ export const makeUniformBuffers = (device: GPUDevice) => {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
+  const radiusBuffer = device.createBuffer({
+    label: "Radius buffer",
+    size: Float32Array.BYTES_PER_ELEMENT,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
   const dimensionBuffer = device.createBuffer({
     label: "Data buffer",
     size: 2 * Float32Array.BYTES_PER_ELEMENT,
@@ -23,7 +29,7 @@ export const makeUniformBuffers = (device: GPUDevice) => {
 
   const parameterBuffer = device.createBuffer({
     label: "Parameters buffer",
-    size: 3 * Float32Array.BYTES_PER_ELEMENT,
+    size: 5 * Float32Array.BYTES_PER_ELEMENT,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
@@ -36,6 +42,9 @@ export const makeUniformBuffers = (device: GPUDevice) => {
     }, {
       binding: 1,
       resource: { buffer: colorBuffer },
+    }, {
+      binding: 2,
+      resource: { buffer: radiusBuffer },
     }]
   });
 
@@ -64,6 +73,7 @@ export const makeUniformBuffers = (device: GPUDevice) => {
       color: colorBuffer,
       dimension: dimensionBuffer,
       parameter: parameterBuffer,
+      radius: radiusBuffer,
     },
     layouts,
     bindGroups: {
